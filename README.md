@@ -82,11 +82,44 @@ python3 summarize.py results/*
 
 Environment variables for `run_bench.sh`: `URL`, `NAME` (required; results go to `results/$NAME/`), `DUR` (seconds per
 state; use 1000 for numbers you publish), `CONC` (default 5), `MODEL`, `API_KEY` (sent as `Authorization: Bearer`),
-`NO_TEMPLATE_KWARGS=1` (for servers that reject `chat_template_kwargs`), `RARGS` (extra arguments for `replay.py`, e.g. `--temperature 0`).
+`NO_TEMPLATE_KWARGS=1` (for servers that reject `chat_template_kwargs`), `NOTE` (who ran it, on what; stored in the summary), `RARGS` (extra arguments for `replay.py`, e.g. `--temperature 0`).
 
 One state only (run `gunzip -k corpus.jsonl.gz` first):
 `python3 replay.py --corpus corpus.jsonl --out out --mode fresh --duration 400`.
 Each run writes `requests.jsonl` (per request) and `summary.json`.
+
+## 3.2 Provenance and exclusivity: who ran this, when, and was the server ours alone?
+
+A throughput number is only meaningful if nobody else was loading the server while it was measured, and if someone else can
+tell that. Every run therefore writes a `provenance` block into `summary.json`:
+
+| Recorded | Why |
+|---|---|
+| `start_utc`, `end_utc`, and a UTC `ts` on every request in `requests.jsonl` | When it ran; lets a server operator line it up with their own logs |
+| `run_id` (random, or `--run-id`), sent as the `X-Loadtest-Run-Id` header and as the client's `User-Agent` | Attributes requests in server / proxy logs to this run |
+| `corpus_sha256`, `replay_py_sha256`, `repo_commit`, `argv`, Python / aiohttp versions, hashed client hostname | Others can verify they ran the same corpus and the same code with the same arguments |
+| `requests_jsonl_sha256` | `summarize.py` recomputes it; a hand-edited result shows `modified!` |
+| `server_*.json` next to the results (`/v1/models`, plus engine info endpoints if present) and their hashes | What the server said it was. These files can contain engine settings; look before you publish them |
+| `--note` | Free text: who ran it, on what |
+
+**Exclusivity is checked, not assumed.** If the server exposes Prometheus `/metrics` (SGLang, vLLM and compatible engines do):
+
+1. **Idle check before the start.** If the server already has running or queued requests, the run aborts (`--allow-busy` records it as contaminated instead).
+2. **Sampler during the run (1 Hz).** More running requests than `--concurrency` means someone else is sending traffic.
+3. **Token accounting.** Tokens the server generated over the whole run (warm-up included) are compared with the tokens we received. Ratio above 1.05 means the server did work we did not ask for.
+
+The verdict is `clean`, `foreign_traffic_suspected` (with the reason, peak and counts) or `unverified` (no `/metrics`: then the
+result is only as exclusive as the tester says, so run it on an isolated server and say so in `--note`). `summarize.py` prints the verdict and start time on
+every row. **Do not compare or publish rows that are not `clean`** without saying so.
+
+**Cache isolation.** Unless you pass `--no-run-salt`, the run id is mixed into the first message of every prompt, so cache hits can only come from
+this run's own warm-up pass, never from an earlier run or another client using the same prompts. The cache hit fractions stay as described in section 2.
+A side effect: two runs of the same setup never share cache, so repeat runs are independent.
+
+**Unique and attributable.** A run is identified by `run_id` + start time + corpus / script hashes. To publish a result, publish
+`summary.json` and `requests.jsonl` together with the server's launch command; others can then rerun with the same hashes and compare.
+Server-side, the unsalted comparison "did anyone else use my server" is only as good as `/metrics`; for a hard guarantee,
+run on a dedicated machine or behind a firewall that only allows the load generator.
 
 ## 4. Example results
 
@@ -105,7 +138,7 @@ Each run writes `requests.jsonl` (per request) and `summary.json`.
 | C | 20% | 422 | 780 / 3185 | 5.8 | 209 | 86% |
 | C | 15% | 402 | 891 / 3359 | 5.8 | 209 | 87% |
 
-`python3 summarize.py example-results/*` prints the full table. Setups A and B ran on the same hardware type with the
+`python3 summarize.py example-results/*` prints the full table. These three predate the provenance block (no timestamps, exclusivity unverified, no run salt), so treat them as illustration, not as reproducible evidence; new runs record everything in section 3.2. Setups A and B ran on the same hardware type with the
 same weights, corpus and chat template, which is what makes them comparable. **Setup C is not comparable** to A and B: its chat template could
 not switch thinking off, so most of its output is reasoning (average 208 tokens, 85% of requests ran into `max_tokens`) and its TTFT includes
 thinking time. That is exactly the kind of difference the checklist below exists to catch.
@@ -115,14 +148,15 @@ thinking time. That is exactly the kind of difference the checklist below exists
 1. **Same chat template on both sides.** If one server's template cannot turn thinking off, it will reason until `max_tokens`
    on almost every request, emit no tool calls, and the numbers stop meaning anything. (We hit this ourselves: with the
    model's stock template 99% of requests ran to the length cap.) The template only changes the request format; it is not a speed optimization.
-2. **Same corpus, same seed, same `--mode`, same concurrency, same duration.** `replay.py` fixes the order with `--seed 1`.
-3. **Check that your baseline reproduces the reference.** Compare average output tokens (163 vs. 161 here) and the median
+2. **Both runs `clean`** in the "exclusive?" column, with start times that do not overlap on a shared server (section 3.2).
+3. **Same corpus, same seed, same `--mode`, same concurrency, same duration.** `replay.py` fixes the order with `--seed 1`.
+4. **Check that your baseline reproduces the reference.** Compare average output tokens (163 vs. 161 here) and the median
    inter-chunk gap (9.24 ms vs. 9.24 ms here). If those do not line up, you are not measuring the same workload yet.
-4. **Look at the `hit max_tokens` column.** It should be similar across setups. A big difference means the outputs differ in kind, not just in speed.
-5. **Report the cache hit column**, and all three cache states.
-6. **Noise.** Repeating a run gives ±1% on throughput and medians; tail metrics (p99) from 5-minute runs vary by up to ±25%. Use `DUR=1000` for anything you publish.
-7. **Tail latency is where cache states differ most.** With few cache hits, a running request gets interrupted by other requests' prompt processing, which shows up in ITL p99 and TTFT p99.
-8. **Do not mix sources.** A reference number copied from someone's result sheet was not measured on your machine at the same time; say so, and prefer running both sides yourself.
+5. **Look at the `hit max_tokens` column.** It should be similar across setups. A big difference means the outputs differ in kind, not just in speed.
+6. **Report the cache hit column**, and all three cache states.
+7. **Noise.** Repeating a run gives ±1% on throughput and medians; tail metrics (p99) from 5-minute runs vary by up to ±25%. Use `DUR=1000` for anything you publish.
+8. **Tail latency is where cache states differ most.** With few cache hits, a running request gets interrupted by other requests' prompt processing, which shows up in ITL p99 and TTFT p99.
+9. **Do not mix sources.** A reference number copied from someone's result sheet was not measured on your machine at the same time; say so, and prefer running both sides yourself.
 
 ## 6. What this test does not cover
 
@@ -133,6 +167,7 @@ than the server default (requests carry no `temperature` unless you pass one).
 
 | File | Purpose |
 |---|---|
+| `provenance.py` | Run metadata, hashes, and the exclusivity checks (idle check, sampler, token accounting) |
 | `replay.py` | Load generator: closed-loop replay, three cache modes, TTFT / TPOT / ITL / E2E percentiles |
 | `run_bench.sh` | Runs the three cache states and prints a table |
 | `summarize.py` | Merges `summary.json` files from several setups into one Markdown table |

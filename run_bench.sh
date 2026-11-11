@@ -13,6 +13,6 @@ MODEL=${MODEL:-zai-org/GLM-5.3-Flash}; OUT=${OUT:-$PWD/results}
 for m in replay sysshared fresh; do
   W=; [ $m = replay ] && W=--warm-pass
   python3 "$HERE/replay.py" --corpus "$HERE/corpus.jsonl" --out "$OUT/$NAME/$m" --url "$URL" --model "$MODEL" \
-    --concurrency "$CONC" --duration "$DUR" --mode $m $W ${RARGS:-} | grep '^SUM'
+    --concurrency "$CONC" --duration "$DUR" --mode $m $W --run-id "$NAME-$m-$(date -u +%Y%m%dT%H%M%S)" --note "${NOTE:-}" ${RARGS:-} | grep '^SUM'
 done
 python3 "$HERE/summarize.py" "$OUT/$NAME"

@@ -10,8 +10,10 @@ Modes (what a "warm cache" can mean — the reference sheet does not say which):
 Metrics follow the reference sheet: TTFT = first streamed delta; TPOT = (e2e - TTFT) / (output tokens - 1);
 ITL = gap between consecutive streamed chunks (some servers put several tokens in one chunk, so ITL is not the same thing as time per token).
 """
-import argparse, asyncio, json, os, random, time, uuid
+import argparse, asyncio, datetime, hashlib, json, os, platform, random, re, socket, subprocess, sys, time, uuid
 import aiohttp
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import provenance as P
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--corpus', required=True); ap.add_argument('--out', required=True)
@@ -19,12 +21,20 @@ ap.add_argument('--url', default='http://localhost:30000'); ap.add_argument('--m
 ap.add_argument('--concurrency', type=int, default=5); ap.add_argument('--duration', type=float, default=1800)
 ap.add_argument('--mode', default='replay', choices=['replay', 'sysshared', 'fresh']); ap.add_argument('--warm-pass', action='store_true')
 ap.add_argument('--temperature', type=float, default=None); ap.add_argument('--thinking', action='store_true'); ap.add_argument('--seed', type=int, default=1); ap.add_argument('--passes', type=int, default=None, help='record exactly N passes over the corpus instead of --duration')
+ap.add_argument('--run-id', default=None, help='label for this run; default: random. Sent as X-Loadtest-Run-Id and mixed into every prompt')
+ap.add_argument('--no-run-salt', action='store_true', help='do not mix the run id into the prompts (then cache hits can come from earlier runs or other clients)')
+ap.add_argument('--allow-busy', action='store_true', help='do not abort when the server already has running requests before we start')
+ap.add_argument('--note', default='', help='free text stored in the summary, e.g. who ran it and on what')
 A = ap.parse_args()
+RUN_ID = A.run_id or uuid.uuid4().hex[:12]
+UTC = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds')
+CLIENT = dict(out=0, inp=0)   # every token we received/sent, warm-up included, to compare with the server's own counters
 rows = [json.loads(l) for l in open(A.corpus)]; order = list(range(len(rows))); random.Random(A.seed).shuffle(order)
 os.makedirs(A.out, exist_ok=True)
 
 def body_for(r):
     msgs = [dict(m) for m in r['messages']]
+    if not A.no_run_salt: msgs[0]['content'] = f'[run {RUN_ID}]\n' + msgs[0]['content']   # isolates the cache from other runs / other clients
     if A.mode != 'replay':
         i = 0 if A.mode == 'fresh' else next(j for j, m in enumerate(msgs) if m['role'] == 'user')
         msgs[i]['content'] = f'[req {uuid.uuid4().hex}]\n' + msgs[i]['content']
@@ -36,7 +46,7 @@ def body_for(r):
     return b
 
 async def one(sess, r):
-    t0 = time.perf_counter(); stamps, usage, fin, err = [], {}, None, None
+    t0 = time.perf_counter(); ts = UTC(); stamps, usage, fin, err = [], {}, None, None
     try:
         async with sess.post(A.url + '/v1/chat/completions', json=body_for(r)) as resp:
             if resp.status != 200: return dict(id=r['id'], err=f'http {resp.status}: {(await resp.text())[:200]}')
@@ -49,17 +59,17 @@ async def one(sess, r):
                     if dl.get('content') or dl.get('reasoning_content') or dl.get('tool_calls'): stamps.append(time.perf_counter())
                     fin = c.get('finish_reason') or fin
     except Exception as e: err = repr(e)[:200]
-    t1 = time.perf_counter()
+    t1 = time.perf_counter(); CLIENT['out'] += usage.get('completion_tokens') or 0; CLIENT['inp'] += usage.get('prompt_tokens') or 0
     if err or not stamps: return dict(id=r['id'], err=err or f'no content (finish={fin}, usage={usage})')
     n = usage.get('completion_tokens') or 0
-    return dict(id=r['id'], kind=r['kind'], t=t0, ttft=stamps[0] - t0, e2e=t1 - t0, out=n, inp=usage.get('prompt_tokens') or 0,
+    return dict(id=r['id'], kind=r['kind'], t=t0, ts=ts, ttft=stamps[0] - t0, e2e=t1 - t0, out=n, inp=usage.get('prompt_tokens') or 0,
                 cached=(usage.get('prompt_tokens_details') or {}).get('cached_tokens') or 0, fin=fin,
                 tpot=(t1 - stamps[0]) / (n - 1) if n > 1 else None, itl=[b - a for a, b in zip(stamps, stamps[1:])])
 
 async def run(duration, record, passes=None):
     cur = {'i': 0}; res = []; tend = time.perf_counter() + duration if duration else None
     async def worker():
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=900), headers={'User-Agent': 'loadtest-replay/1.0', **({'Authorization': 'Bearer ' + os.environ['API_KEY']} if os.environ.get('API_KEY') else {})}) as sess:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=900), headers={'User-Agent': 'loadtest-replay/1.0', 'X-Loadtest-Run-Id': RUN_ID, **({'Authorization': 'Bearer ' + os.environ['API_KEY']} if os.environ.get('API_KEY') else {})}) as sess:
             while True:
                 i = cur['i']; cur['i'] += 1
                 if (tend and time.perf_counter() >= tend) or (passes and i >= passes * len(rows)): return
@@ -69,10 +79,36 @@ async def run(duration, record, passes=None):
 
 def pct(xs, p):
     xs = sorted(xs); return xs[min(len(xs) - 1, int(p / 100 * len(xs)))] if xs else float('nan')
+async def sampler(sess, stop, out):
+    while not stop.is_set():
+        m = await P.scrape(sess, A.url); out.append(m['running'] if m else None)
+        try: await asyncio.wait_for(stop.wait(), 1.0)
+        except asyncio.TimeoutError: pass
+
 async def main():
+    t_start = UTC()
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as ps:
+        ident = await P.server_identity(ps, A.url, A.out)
+        pre = await P.scrape(ps, A.url)
+        if pre and not A.allow_busy and ((pre['running'] or 0) > 0 or (pre['queued'] or 0) > 0):
+            sys.exit(f'server is not idle before the run (running={pre["running"]}, queued={pre["queued"]}): someone else is using it. Wait, or pass --allow-busy to record the run as such.')
+        stop = asyncio.Event(); samples = []; task = asyncio.create_task(sampler(ps, stop, samples))
+        out = await measured()
+        stop.set(); await task
+        post = await P.scrape(ps, A.url)
+    res, wall, extra = out
+    V = P.verdict(pre, post, samples, A.concurrency, CLIENT['out'])
+    if pre and pre['running'] and A.allow_busy: V.update(status='foreign_traffic_suspected', reason=f'server was busy before start (running={pre["running"]}); ' + V['reason'])
+    report(res, wall, dict(run_id=RUN_ID, start_utc=t_start, end_utc=UTC(), note=A.note, argv=sys.argv[1:], salt=not A.no_run_salt,
+        environment=P.environment(A.corpus, os.path.dirname(os.path.abspath(__file__))), server=ident, interference=V))
+
+async def measured():
     if A.warm_pass:
         _, tw = await run(None, False, passes=1); print(f'warm pass done in {tw:.0f}s', flush=True)
     res, wall = await run(None if A.passes else A.duration, True, passes=A.passes)
+    return res, wall, None
+
+def report(res, wall, prov):
     ok = [x for x in res if 'err' not in x]; bad = [x for x in res if 'err' in x]
     with open(f'{A.out}/requests.jsonl', 'w') as f:
         for x in res: f.write(json.dumps({k: v for k, v in x.items() if k != 'itl'}) + '\n')
@@ -86,8 +122,10 @@ async def main():
         throughput=dict(requests_per_s=round(len(ok) / wall, 2), input_tokens_per_s=round(sum(x['inp'] for x in ok) / wall, 2), output_tokens_per_s=round(sum(x['out'] for x in ok) / wall, 2)),
         latency_ms={k: {f'p{p}': ms(pct(v, p)) for p in (50, 95, 99)} for k, v in dict(ttft=[x['ttft'] for x in ok], tpot=[x['tpot'] for x in ok if x['tpot']], itl=itl, e2e=[x['e2e'] for x in ok]).items()},
         errors=[x['err'] for x in bad[:5]])
+    S['provenance'] = dict(prov, requests_jsonl_sha256=P.sha256_file(f'{A.out}/requests.jsonl'), schema=2)
     json.dump(S, open(f'{A.out}/summary.json', 'w'), indent=1)
     L = S['latency_ms']; print(f"SUM {S['scope']} n={len(ok)} fail={len(bad)} in/out={S['tokens']['avg_input_per_request']}/{S['tokens']['avg_output_per_request']} cached={S['tokens']['cached_frac']:.0%} "
           f"out_tok/s={S['throughput']['output_tokens_per_s']} ttft50/95/99={L['ttft']['p50']}/{L['ttft']['p95']}/{L['ttft']['p99']} tpot50/95/99={L['tpot']['p50']}/{L['tpot']['p95']}/{L['tpot']['p99']} "
-          f"itl50/99={L['itl']['p50']}/{L['itl']['p99']} e2e50/95/99={L['e2e']['p50']}/{L['e2e']['p95']}/{L['e2e']['p99']}", flush=True)
+          f"itl50/99={L['itl']['p50']}/{L['itl']['p99']} e2e50/95/99={L['e2e']['p50']}/{L['e2e']['p95']}/{L['e2e']['p99']} exclusive={prov['interference']['status']}", flush=True)
+
 asyncio.run(main())
