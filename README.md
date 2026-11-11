@@ -121,6 +121,32 @@ A side effect: two runs of the same setup never share cache, so repeat runs are 
 Server-side, the unsalted comparison "did anyone else use my server" is only as good as `/metrics`; for a hard guarantee,
 run on a dedicated machine or behind a firewall that only allows the load generator.
 
+## 3.3 High concurrency (64 and more) against a hosted endpoint
+
+The same tool does a concurrency sweep; only `--concurrency` and the connection details change.
+
+```bash
+export API_KEY=<key you were given>            # sent as "Authorization: Bearer ..."
+# one run, 64 requests in flight, 5 minutes, almost no cache hits (the harder case)
+python3 replay.py --corpus corpus.jsonl --out out-c64 --url https://<endpoint> --model <model-or-backend-id> \
+    --concurrency 64 --duration 300 --mode fresh --note "who/where"
+
+# or the whole matrix: three cache states at each concurrency, one table
+for C in 16 64 128; do
+  URL=https://<endpoint> MODEL=<model-or-backend-id> NAME=c$C CONC=$C DUR=300 bash run_bench.sh
+done
+python3 summarize.py results/c*
+```
+
+`--url` is the base without `/v1` (the tool appends `/v1/chat/completions`). Things that matter at high concurrency:
+
+- **Read TTFT and p99, not only tok/s.** With 64 in flight, aggregate tok/s rises but each request gets slower; the queueing shows up in TTFT p95/p99 and in E2E. Report both.
+- **Closed loop means the server is never overloaded beyond `--concurrency`.** If you also want to see the rejection behaviour, raise the concurrency until you see `failed > 0`; HTTP 429 means the endpoint's own in-flight cap, not a model failure. Failed requests are listed in `summary.json` (`errors`) and never dropped.
+- **Behind a proxy there is no `/metrics`**, so the exclusivity verdict is `unverified`. Say in `--note` whether you were the only user, and do not run two load tests against the same endpoint at the same time: they slow each other down and neither number is valid.
+- **The corpus is ~5.4K tokens per prompt.** 64 in flight is ~350K tokens of prompt on the server at once; make sure the server's context / KV-cache capacity is large enough, otherwise requests queue and TTFT grows without any engine problem.
+- **Warm-up**: `--mode replay` needs `--warm-pass` (the 200 prompts at 64 concurrency take about a minute). `fresh` and `sysshared` need none.
+- A 60-second run is only a connectivity check; tails need 300 s or more.
+
 ## 4. Example results
 
 `example-results/` holds raw `summary.json` files from three deployments of the same model, measured with this tool
