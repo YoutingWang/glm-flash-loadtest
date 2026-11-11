@@ -1,0 +1,4 @@
+Code in this repository (replay.py, run_bench.sh, summarize.py, gen_corpus.py) and the documentation are released
+under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+corpus.jsonl.gz contains passages from Wikipedia (CC BY-SA 4.0) and SGLang source files (Apache-2.0) wrapped in generated
+task prompts; reuse of the corpus must respect those licenses.
