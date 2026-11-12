@@ -1,0 +1,8 @@
+{"t0": 1794460722.063479, "t1": 1794460722.5947561, "ttft": 0.5040369033813477, "out": 2, "inp": 685, "cached": 512, "fin": "stop", "text": "6", "expected": "6", "measured": false}
+{"t0": 1794460741.697165, "t1": 1794460742.220445, "ttft": 0.49468398094177246, "out": 13, "inp": 694, "cached": 512, "fin": "stop", "text": "[4, 5, 7, 8]", "expected": "[4, 5, 7, 8]", "measured": false}
+{"t0": 1794460842.413641, "t1": 1794460842.9226282, "ttft": 0.48197388648986816, "out": 2, "inp": 685, "cached": 512, "fin": "stop", "text": "5", "expected": "5", "measured": true}
+{"t0": 1794460853.339657, "t1": 1794460853.8395479, "ttft": 0.4819650650024414, "out": 2, "inp": 686, "cached": 512, "fin": "stop", "text": "MODULE", "expected": "MODULE", "measured": true}
+{"t0": 1794460887.655947, "t1": 1794460888.1535308, "ttft": 0.4829719066619873, "out": 3, "inp": 686, "cached": 512, "fin": "stop", "text": "ROUTER", "expected": "ROUTER", "measured": true}
+{"t0": 1794460900.906537, "t1": 1794460901.391573, "ttft": 0.46987009048461914, "out": 2, "inp": 686, "cached": 512, "fin": "stop", "text": "88", "expected": "88", "measured": true}
+{"t0": 1794460927.976632, "t1": 1794460928.4757462, "ttft": 0.46727490425109863, "out": 13, "inp": 694, "cached": 512, "fin": "stop", "text": "[1, 3, 5, 6]", "expected": "[1, 3, 5, 6]", "measured": true}
+{"t0": 1794460929.7322628, "t1": 1794460930.242197, "ttft": 0.4686610698699951, "out": 13, "inp": 694, "cached": 512, "fin": "stop", "text": "[2, 6, 7, 9]", "expected": "[2, 6, 7, 9]", "measured": true}

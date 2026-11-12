@@ -7,6 +7,7 @@
 # Self-contained: the load generator and corpus are in agent/ (a byte-identical copy of coding-agent-serving-bench
 # commit 78d9cc3e14ff, Apache-2.0). Before running, the script checks their sha256 against the hashes recorded in our
 # published results (agent/results/*/*/summary.json -> manifest.script_sha256 / corpus_sha256).
+# Optional: SERVER_LOG_CMD='<command that streams the server log>' enables the exclusivity check (server operators only).
 # Needs Python >= 3.9 and aiohttp. Writes agent-results/<model>/ and agent-results/compare.md.
 set -euo pipefail
 URL=${URL:-https://glm-flash.aitist.ai}
@@ -24,7 +25,8 @@ mkdir -p "$OUT"
 for M in $MODELS; do
   echo "== $M @ $URL  concurrency $CONC, warm-up ${WARMUP}s, measured ${DUR}s per level"
   python3 "$A/bench/run.py" --url "$URL" --model "$M" --label "$M" --out "$OUT/$M" \
-    --concurrency "$CONC" --warmup "$WARMUP" --duration "$DUR" --hardware "${HARDWARE:-}" ${RARGS:-}
+    --concurrency "$CONC" --warmup "$WARMUP" --duration "$DUR" --hardware "${HARDWARE:-}" \
+    ${SERVER_LOG_CMD:+--server-log-cmd "$SERVER_LOG_CMD"} ${RARGS:-}
 done
 python3 "$A/bench/compare.py" $(for M in $MODELS; do echo "$OUT/$M"; done) --md "$OUT/compare.md"
 echo "table: $OUT/compare.md   (ours: python3 agent/bench/compare.py agent/results/2026-11-12-glm-flash-l20x/*)"

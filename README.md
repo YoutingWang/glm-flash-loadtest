@@ -164,7 +164,7 @@ once" is a separate question, so it has its own test in `agent/`.
 | `agent/bench/run.py` | load generator (sha256 `f2abcfcbe416…`) |
 | `agent/bench/compare.py` | turns several runs into one table |
 | `agent/corpus/coding_v1.jsonl.gz` | the request corpus (sha256 `6e93e8a5f3f6…`) |
-| `agent/results/2026-11-12-glm-flash-l20x/` | our raw results: summary, every request, canaries, `SHA256SUMS` |
+| `agent/results/2026-11-12-glm-flash-l20x/`, `agent/results/2026-11-12-glm-flash-l20x-c1-8/` | our raw results (16/32/64 and 1/4/8): summary, every request, canaries, `SHA256SUMS` |
 | `run_agent_c64.sh` | one command that checks the hashes and runs the test |
 
 `agent/` is a byte-identical copy of the load generator and corpus from coding-agent-serving-bench, commit `78d9cc3e14ff`
@@ -175,16 +175,17 @@ generator and the corpus that produced it:
 
 ```bash
 shasum -a 256 agent/bench/run.py agent/corpus/coding_v1.jsonl.gz
-grep -h -o '"\(script\|corpus\)_sha256": "[0-9a-f]*"' agent/results/2026-11-12-glm-flash-l20x/*/summary.json | sort | uniq -c
+grep -h -o '"\(script\|corpus\)_sha256": "[0-9a-f]*"' agent/results/*/*/summary.json | sort | uniq -c
 ```
 
-Both hashes appear in all four of our result sets. `run_agent_c64.sh` refuses to run if the local files differ.
+Both hashes appear in all six of our result sets. `run_agent_c64.sh` refuses to run if the local files differ.
 
 **Reproduce:**
 
 ```bash
 pip install aiohttp
 bash run_agent_c64.sh                    # https://glm-flash.aitist.ai, glm-official then glm-zt, ~30 min, one table
+CONC=1,4,8 bash run_agent_c64.sh         # the low-concurrency levels, same script
 python3 agent/bench/compare.py agent-results/glm-official agent-results/glm-zt agent/results/2026-11-12-glm-flash-l20x/*-https
 ```
 
@@ -201,7 +202,17 @@ different workload, and its numbers are not comparable with these.
 | 32 | 1,469 → **2,418 (1.65×)** | 582 / 804 → **604 / 861** | 19.1 → 10.8 |
 | 64 | 2,112 → **3,297 (1.56×)** | 603 / 900 → **650 / 1,054** | 27.1 → 16.3 |
 
-All integrity checks passed on every level of both runs, with 0 failed requests. Our server logs were streamed in, so the exclusivity check passed.
+Low concurrency, same script (`CONC=1,4,8`), same day, same path:
+
+| Concurrency | Output tok/s: glm-official → **glm-zt** | TTFT p50 (ms): official → zt | TPOT p50 (ms): official → zt |
+|---:|---|---|---|
+| 1 | 99 → **156 (1.57×)** | 666 → 686 | 7.6 → 4.0 |
+| 4 | 374 → **583 (1.56×)** | 532 → 562 | 8.7 → 4.8 |
+| 8 | 636 → **1,005 (1.58×)** | 542 → 562 | 10.6 → 6.0 |
+
+All integrity checks passed on every level of all runs, with 0 failed requests. Our server logs were streamed in, so the exclusivity check passed.
+One exception is worth knowing about. During the last ~1 min of glm-zt's 8-agent level, one request from another user (25K output tokens) was also running.
+The exclusivity rule tolerates one extra request, so the check still passed. That overlap can only have lowered glm-zt's number; the server's "idle after" check recorded it.
 With the client on the server node itself (`official-sglang`, `a1-l20x`), the same backends reach 2,148 → 3,357 tok/s at 64. The
 public path adds a flat ~0.45 s to time to first token and costs 2–9% of throughput.
 
