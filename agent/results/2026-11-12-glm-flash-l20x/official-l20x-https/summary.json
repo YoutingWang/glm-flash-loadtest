@@ -1,0 +1,299 @@
+{
+ "manifest": {
+  "tool": "coding-agent-serving-bench",
+  "version": "1.0.0",
+  "label": "official-l20x-https",
+  "url_host": "glm-flash.aitist.ai",
+  "model": "glm-official",
+  "hardware": "8x NVIDIA L20X 141GB, via public HTTPS (Cloudflare tunnel -> gateway -> ssh forward)",
+  "corpus": "coding_v1.jsonl.gz",
+  "corpus_sha256": "6e93e8a5f3f68f7e64c1da885516de3221394bbcfa63587486c285ea5355086c",
+  "script_sha256": "f2abcfcbe416bd844af816b14da64aebacf119286097064e7d3c51e827b6ed17",
+  "args": {
+   "url": "https://glm-flash.aitist.ai",
+   "model": "glm-official",
+   "label": "official-l20x-https",
+   "out": "results/official-l20x-https",
+   "corpus": "/privatebench/../corpus/coding_v1.jsonl.gz",
+   "concurrency": "16,32,64",
+   "warmup": 60.0,
+   "duration": 180.0,
+   "temperature": 0.6,
+   "top_p": 0.95,
+   "thinking": false,
+   "no_tools": false,
+   "no_ignore_eos": false,
+   "server_log_cmd": "podman logs -f of the server container, streamed from the server host over ssh",
+   "canary_frac": 0.02,
+   "seed": 1,
+   "hardware": "8x NVIDIA L20X 141GB, via public HTTPS (Cloudflare tunnel -> gateway -> ssh forward)"
+  },
+  "client": {
+   "host": "a workstation on the public internet (client -> Cloudflare -> gateway -> server)",
+   "python": "3.13.16",
+   "aiohttp": "3.14.5"
+  },
+  "started_utc": "2026-11-11T23:14:25+00:00",
+  "server_models": {
+   "object": "list",
+   "data": [
+    {
+     "id": "glm-5.3-flash",
+     "object": "model",
+     "owned_by": "zhongtian"
+    },
+    {
+     "id": "glm-zt",
+     "object": "model",
+     "owned_by": "zhongtian",
+     "description": "GLM-5.3-Flash optimized · 8×L20X"
+    },
+    {
+     "id": "glm-official",
+     "object": "model",
+     "owned_by": "zhongtian",
+     "description": "GLM-5.3-Flash official SGLang · 8×L20X"
+    }
+   ]
+  },
+  "idle_before": {
+   "method": "server log",
+   "seconds": 20,
+   "busy_log_lines": 0,
+   "result": "PASS"
+  },
+  "probe_before": {
+   "tag": "before",
+   "idle_canary_accuracy": 1.0,
+   "single_user_tok_s": 129.9,
+   "ttft_ms": 521.5,
+   "fingerprints": [
+    "```python\ns[::-1]\n```",
+    "`ValueError`",
+    "`git stash` temporarily saves your uncommitted changes (both staged and unstaged) and reverts your working directory to"
+   ]
+  },
+  "idle_after": {
+   "method": "server log",
+   "seconds": 15,
+   "busy_log_lines": 0,
+   "result": "PASS"
+  },
+  "probe_after": {
+   "tag": "after",
+   "idle_canary_accuracy": null,
+   "single_user_tok_s": 129.6,
+   "ttft_ms": 490.5,
+   "fingerprints": [
+    "```python\ns[::-1]\n```",
+    "`ValueError`",
+    "`git stash` temporarily saves your uncommitted changes (both staged and unstaged) and reverts your working directory to"
+   ]
+  },
+  "fingerprint_match": true,
+  "finished_utc": "2026-11-11T23:28:03+00:00"
+ },
+ "levels": [
+  {
+   "concurrency": 16,
+   "window_s": 180.0,
+   "completed": 577,
+   "failed": 0,
+   "output_tokens_per_s": 972.2,
+   "requests_per_s": 3.206,
+   "input_tokens_per_s": 78267.5,
+   "avg_input_tokens": 24416,
+   "avg_output_tokens": 299,
+   "cached_frac": 0.94,
+   "per_user_tok_s": {
+    "p50": 70.9,
+    "p10": 65.9
+   },
+   "ttft_ms": {
+    "p50": 561.4,
+    "p90": 663.6,
+    "p95": 702.6,
+    "p99": 794.7
+   },
+   "tpot_ms": {
+    "p50": 14.1,
+    "p90": 15.2,
+    "p95": 15.5,
+    "p99": 16.7
+   },
+   "itl_ms": {
+    "p50": 11.9,
+    "p90": 22.4,
+    "p95": 26.5,
+    "p99": 79.4
+   },
+   "e2e_ms": {
+    "p50": 3521.2,
+    "p90": 10025.8,
+    "p95": 11205.8,
+    "p99": 12046.4
+   },
+   "errors": [],
+   "integrity": {
+    "fixed_len": {
+     "exact_frac": 1.0,
+     "chars_per_token": 5.24,
+     "result": "PASS"
+    },
+    "canary": {
+     "n": 14,
+     "accuracy": 1.0,
+     "idle_accuracy": 1.0,
+     "result": "PASS"
+    },
+    "prefill": {
+     "implausible": 0,
+     "result": "PASS"
+    },
+    "exclusive": {
+     "method": "server log",
+     "log_samples": 887,
+     "max_extra_requests": 0,
+     "frac_samples_with_extra": 0.0,
+     "server_prefill_tokens": 881306,
+     "our_uncached_prompt_tokens": 839377,
+     "result": "PASS"
+    }
+   }
+  },
+  {
+   "concurrency": 32,
+   "window_s": 180.0,
+   "completed": 840,
+   "failed": 0,
+   "output_tokens_per_s": 1468.6,
+   "requests_per_s": 4.667,
+   "input_tokens_per_s": 97771.7,
+   "avg_input_tokens": 20951,
+   "avg_output_tokens": 307,
+   "cached_frac": 0.925,
+   "per_user_tok_s": {
+    "p50": 52.5,
+    "p10": 48.8
+   },
+   "ttft_ms": {
+    "p50": 582.1,
+    "p90": 697.7,
+    "p95": 732.3,
+    "p99": 804.0
+   },
+   "tpot_ms": {
+    "p50": 19.1,
+    "p90": 20.5,
+    "p95": 21.1,
+    "p99": 22.4
+   },
+   "itl_ms": {
+    "p50": 14.4,
+    "p90": 28.4,
+    "p95": 44.5,
+    "p99": 128.1
+   },
+   "e2e_ms": {
+    "p50": 4698.5,
+    "p90": 13486.5,
+    "p95": 14801.8,
+    "p99": 19952.5
+   },
+   "errors": [],
+   "integrity": {
+    "fixed_len": {
+     "exact_frac": 1.0,
+     "chars_per_token": 5.26,
+     "result": "PASS"
+    },
+    "canary": {
+     "n": 18,
+     "accuracy": 1.0,
+     "idle_accuracy": 1.0,
+     "result": "PASS"
+    },
+    "prefill": {
+     "implausible": 0,
+     "result": "PASS"
+    },
+    "exclusive": {
+     "method": "server log",
+     "log_samples": 1040,
+     "max_extra_requests": 0,
+     "frac_samples_with_extra": 0.0,
+     "server_prefill_tokens": 1383129,
+     "our_uncached_prompt_tokens": 1328311,
+     "result": "PASS"
+    }
+   }
+  },
+  {
+   "concurrency": 64,
+   "window_s": 180.0,
+   "completed": 1220,
+   "failed": 0,
+   "output_tokens_per_s": 2112.2,
+   "requests_per_s": 6.778,
+   "input_tokens_per_s": 127872.7,
+   "avg_input_tokens": 18866,
+   "avg_output_tokens": 299,
+   "cached_frac": 0.917,
+   "per_user_tok_s": {
+    "p50": 36.9,
+    "p10": 34.4
+   },
+   "ttft_ms": {
+    "p50": 602.9,
+    "p90": 749.9,
+    "p95": 796.7,
+    "p99": 900.3
+   },
+   "tpot_ms": {
+    "p50": 27.1,
+    "p90": 29.0,
+    "p95": 30.1,
+    "p99": 32.2
+   },
+   "itl_ms": {
+    "p50": 17.7,
+    "p90": 47.8,
+    "p95": 86.3,
+    "p99": 198.4
+   },
+   "e2e_ms": {
+    "p50": 6448.9,
+    "p90": 18429.3,
+    "p95": 20664.4,
+    "p99": 23541.2
+   },
+   "errors": [],
+   "integrity": {
+    "fixed_len": {
+     "exact_frac": 1.0,
+     "chars_per_token": 5.26,
+     "result": "PASS"
+    },
+    "canary": {
+     "n": 41,
+     "accuracy": 1.0,
+     "idle_accuracy": 1.0,
+     "result": "PASS"
+    },
+    "prefill": {
+     "implausible": 0,
+     "result": "PASS"
+    },
+    "exclusive": {
+     "method": "server log",
+     "log_samples": 1254,
+     "max_extra_requests": 0,
+     "frac_samples_with_extra": 0.0,
+     "server_prefill_tokens": 1989962,
+     "our_uncached_prompt_tokens": 1907579,
+     "result": "PASS"
+    }
+   }
+  }
+ ]
+}

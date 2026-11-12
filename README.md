@@ -150,30 +150,50 @@ python3 summarize.py results/c*
 ## 3.4 The coding-agent test at 16 / 32 / 64 (the numbers we publish for GLM-5.3-Flash)
 
 The tests above use 5.4K-token prompts. Coding agents send much longer, growing prompts, and "does it hold 64 agents at
-once" is a separate question, so we measure it with a second, dedicated tool:
-[coding-agent-serving-bench](https://github.com/zhongtian-ai/coding-agent-serving-bench).
+once" is a separate question, so it has its own test in `agent/`.
 
 - **Workload:** 120 agent sessions (2,633 requests), a median prompt of ~19K tokens (p90 41K), and 6 tool schemas. Consecutive turns share a growing prefix, as real agents do.
 - **Load:** closed loop, so exactly N requests are always in flight. Each level gets a 60 s warm-up, then is measured for 180 s.
 - **Fixed output:** fixed output lengths (`ignore_eos`) mean every deployment does the same work.
-- **Built-in checks:** exact output length, canary accuracy under load, temperature-0 fingerprints before and after, and an implausibly fast prefill check. With the server's log streamed in, it also checks that nobody else was using the server.
+- **Built-in checks:** exact output length, canary accuracy under load, temperature-0 fingerprints before and after, and an implausibly fast prefill check. If you can stream the server's log in (`--server-log-cmd`), it also checks that nobody else was using the server.
 
-**This is the test behind our published GLM-5.3-Flash numbers.** `run_agent_c64.sh` pins coding-agent-serving-bench to commit `78d9cc3e14ff`; its `bench/run.py` has sha256 `f2abcfcbe416…` and its corpus has sha256 `6e93e8a5f3f6…`, and every result file records both hashes. The 5-in-flight test above (`replay.py` / `run_bench.sh`) is a different workload, and its numbers are not comparable.
+**This is the test behind our published GLM-5.3-Flash numbers, and everything needed to run it is in this repository:**
 
-One command runs it against both backends of the public endpoint and prints one table:
+| Path | What |
+|---|---|
+| `agent/bench/run.py` | load generator (sha256 `f2abcfcbe416…`) |
+| `agent/bench/compare.py` | turns several runs into one table |
+| `agent/corpus/coding_v1.jsonl.gz` | the request corpus (sha256 `6e93e8a5f3f6…`) |
+| `agent/results/2026-11-12-glm-flash-l20x/` | our raw results: summary, every request, canaries, `SHA256SUMS` |
+| `run_agent_c64.sh` | one command that checks the hashes and runs the test |
+
+`agent/` is a byte-identical copy of the load generator and corpus from coding-agent-serving-bench, commit `78d9cc3e14ff`
+(Apache-2.0, see `agent/LICENSE`). The corpus contains excerpts of CPython source, PSF License 2.0.
+
+**Check that our published numbers came from this exact code.** Every `summary.json` records the sha256 of the load
+generator and the corpus that produced it:
+
+```bash
+shasum -a 256 agent/bench/run.py agent/corpus/coding_v1.jsonl.gz
+grep -h -o '"\(script\|corpus\)_sha256": "[0-9a-f]*"' agent/results/2026-11-12-glm-flash-l20x/*/summary.json | sort | uniq -c
+```
+
+Both hashes appear in all four of our result sets. `run_agent_c64.sh` refuses to run if the local files differ.
+
+**Reproduce:**
 
 ```bash
 pip install aiohttp
-bash run_agent_c64.sh                    # https://glm-flash.aitist.ai, glm-official then glm-zt, ~30 min
-# any other endpoint / models:
-URL=https://<endpoint> MODELS="<model-a> <model-b>" bash run_agent_c64.sh
+bash run_agent_c64.sh                    # https://glm-flash.aitist.ai, glm-official then glm-zt, ~30 min, one table
+python3 agent/bench/compare.py agent-results/glm-official agent-results/glm-zt agent/results/2026-11-12-glm-flash-l20x/*-https
 ```
 
 On `https://glm-flash.aitist.ai`, the model name selects the backend: `glm-zt` is the optimized build and `glm-official` is
 unmodified official SGLang. Both run on identical 8× L20X 141 GB nodes with the same weights and chat template. No API key
-is needed. The endpoint allows up to 64 requests in flight per client IP.
+is needed, and up to 64 requests may be in flight per client IP. The 5-in-flight test above (`replay.py` / `run_bench.sh`) is a
+different workload, and its numbers are not comparable with these.
 
-**Our run, same command, from a workstation on the public internet (2026-11-12, 8× L20X per backend):**
+**Our results** (2026-11-12, same command from a workstation on the public internet, 8× L20X per backend):
 
 | Concurrency | Output tok/s: glm-official → **glm-zt** | TTFT p50 / p99 (ms): glm-official → **glm-zt** | TPOT p50 (ms): official → zt |
 |---:|---|---|---|
@@ -182,14 +202,13 @@ is needed. The endpoint allows up to 64 requests in flight per client IP.
 | 64 | 2,112 → **3,297 (1.56×)** | 603 / 900 → **650 / 1,054** | 27.1 → 16.3 |
 
 All integrity checks passed on every level of both runs, with 0 failed requests. Our server logs were streamed in, so the exclusivity check passed.
-With the client on the server node itself, the same backends reach 2,148 → 3,357 tok/s at 64. The public path adds a
-flat ~0.45 s to time to first token and costs 2–9% of throughput. Raw results and on-node runs are in
-coding-agent-serving-bench [`results/`](https://github.com/zhongtian-ai/coding-agent-serving-bench/pull/2).
+With the client on the server node itself (`official-sglang`, `a1-l20x`), the same backends reach 2,148 → 3,357 tok/s at 64. The
+public path adds a flat ~0.45 s to time to first token and costs 2–9% of throughput.
 
 What to watch for when you reproduce:
 
 - **Pin the backend** with `glm-zt` / `glm-official`. The generic name `glm-5.3-flash` falls back from the optimized to the official backend if the first is unavailable, so a run could mix both.
-- **Run one test at a time,** and not at the same time as someone else. Without access to the server log you cannot prove exclusivity yourself (the verdict is `unverified`), so say in your notes whether you were alone.
+- **Run one test at a time,** and not at the same time as someone else. Without the server log you cannot prove exclusivity yourself (the verdict is `not checked`), so say in your notes whether you were alone.
 - **Expect your TTFT to differ from ours** by your network round trip to Cloudflare. Throughput should be close.
 - **The first minute after a server restart is slow** (JIT compilation). The 60 s warm-up covers this.
 
@@ -243,7 +262,7 @@ than the server default (requests carry no `temperature` unless you pass one).
 | `replay.py` | Load generator: closed-loop replay, three cache modes, TTFT / TPOT / ITL / E2E percentiles |
 | `run_bench.sh` | Runs the three cache states and prints a table |
 | `summarize.py` | Merges `summary.json` files from several setups into one Markdown table |
-| `run_agent_c64.sh` | Coding-agent test at 16 / 32 / 64 in flight (section 3.4), using coding-agent-serving-bench pinned to one commit |
+| `run_agent_c64.sh`, `agent/` | Coding-agent test at 16 / 32 / 64 in flight (section 3.4): load generator, corpus, our raw results |
 | `corpus.jsonl.gz` | The 200-prompt corpus used for every number above |
 | `gen_corpus.py` | Rebuilds a similar corpus (needs network access and a tokenizer file) |
 | `example-results/` | Raw summaries from three example deployments |

@@ -1,0 +1,291 @@
+{
+ "manifest": {
+  "tool": "coding-agent-serving-bench",
+  "version": "1.0.0",
+  "label": "official-sglang",
+  "url_host": "127.0.0.1:30000",
+  "model": "zai-org/GLM-5.3-Flash",
+  "hardware": "8x NVIDIA L20X 141GB (nvidia-smi name), 1 node, partner-hosted",
+  "corpus": "coding_v1.jsonl.gz",
+  "corpus_sha256": "6e93e8a5f3f68f7e64c1da885516de3221394bbcfa63587486c285ea5355086c",
+  "script_sha256": "f2abcfcbe416bd844af816b14da64aebacf119286097064e7d3c51e827b6ed17",
+  "args": {
+   "url": "http://127.0.0.1:30000",
+   "model": "zai-org/GLM-5.3-Flash",
+   "label": "official-sglang",
+   "out": "/b/results/official-sglang",
+   "corpus": "/b/bench/../corpus/coding_v1.jsonl.gz",
+   "concurrency": "16,32,64",
+   "warmup": 60.0,
+   "duration": 180.0,
+   "temperature": 0.6,
+   "top_p": 0.95,
+   "thinking": false,
+   "no_tools": false,
+   "no_ignore_eos": false,
+   "server_log_cmd": "tail -n0 -F /b/results/official-sglang/server.log",
+   "canary_frac": 0.02,
+   "seed": 1,
+   "hardware": "8x NVIDIA L20X 141GB (nvidia-smi name), 1 node, partner-hosted"
+  },
+  "client": {
+   "host": "same node as the server (client in a container from the server image)",
+   "python": "3.12.16",
+   "aiohttp": "3.14.5"
+  },
+  "started_utc": "2026-11-11T07:52:04+00:00",
+  "server_models": {
+   "object": "list",
+   "data": [
+    {
+     "id": "zai-org/GLM-5.3-Flash",
+     "object": "model",
+     "created": 1794383524,
+     "owned_by": "sglang",
+     "root": "zai-org/GLM-5.3-Flash",
+     "parent": null,
+     "max_model_len": 1048576
+    }
+   ]
+  },
+  "idle_before": {
+   "method": "server log",
+   "seconds": 20,
+   "busy_log_lines": 0,
+   "result": "PASS"
+  },
+  "probe_before": {
+   "tag": "before",
+   "idle_canary_accuracy": 1.0,
+   "single_user_tok_s": 138.9,
+   "ttft_ms": 64.5,
+   "fingerprints": [
+    "```python\ns[::-1]\n```",
+    "`ValueError`",
+    "`git stash` temporarily saves your uncommitted changes (both staged and unstaged) and reverts your working directory to"
+   ]
+  },
+  "idle_after": {
+   "method": "server log",
+   "seconds": 15,
+   "busy_log_lines": 0,
+   "result": "PASS"
+  },
+  "probe_after": {
+   "tag": "after",
+   "idle_canary_accuracy": null,
+   "single_user_tok_s": 139.2,
+   "ttft_ms": 47.1,
+   "fingerprints": [
+    "```python\ns[::-1]\n```",
+    "`ValueError`",
+    "`git stash` temporarily saves your uncommitted changes (both staged and unstaged) and reverts your working directory to"
+   ]
+  },
+  "fingerprint_match": true,
+  "finished_utc": "2026-11-11T08:05:25+00:00"
+ },
+ "levels": [
+  {
+   "concurrency": 16,
+   "window_s": 180.0,
+   "completed": 606,
+   "failed": 0,
+   "output_tokens_per_s": 1037.0,
+   "requests_per_s": 3.367,
+   "input_tokens_per_s": 81434.1,
+   "avg_input_tokens": 24188,
+   "avg_output_tokens": 305,
+   "cached_frac": 0.937,
+   "per_user_tok_s": {
+    "p50": 68.3,
+    "p10": 63.4
+   },
+   "ttft_ms": {
+    "p50": 124.4,
+    "p90": 212.7,
+    "p95": 251.4,
+    "p99": 293.8
+   },
+   "tpot_ms": {
+    "p50": 14.6,
+    "p90": 15.8,
+    "p95": 16.2,
+    "p99": 16.9
+   },
+   "itl_ms": {
+    "p50": 12.0,
+    "p90": 21.4,
+    "p95": 25.8,
+    "p99": 85.9
+   },
+   "e2e_ms": {
+    "p50": 3187.3,
+    "p90": 10072.6,
+    "p95": 11139.4,
+    "p99": 13193.2
+   },
+   "errors": [],
+   "integrity": {
+    "fixed_len": {
+     "exact_frac": 1.0,
+     "chars_per_token": 5.28,
+     "result": "PASS"
+    },
+    "canary": {
+     "n": 15,
+     "accuracy": 1.0,
+     "idle_accuracy": 1.0,
+     "result": "PASS"
+    },
+    "prefill": {
+     "implausible": 0,
+     "result": "PASS"
+    },
+    "exclusive": {
+     "method": "server log",
+     "log_samples": 919,
+     "max_extra_requests": 0,
+     "frac_samples_with_extra": 0.0,
+     "server_prefill_tokens": 951682,
+     "our_uncached_prompt_tokens": 921938,
+     "result": "PASS"
+    }
+   }
+  },
+  {
+   "concurrency": 32,
+   "window_s": 180.0,
+   "completed": 876,
+   "failed": 0,
+   "output_tokens_per_s": 1545.8,
+   "requests_per_s": 4.867,
+   "input_tokens_per_s": 102471.1,
+   "avg_input_tokens": 21056,
+   "avg_output_tokens": 311,
+   "cached_frac": 0.925,
+   "per_user_tok_s": {
+    "p50": 50.7,
+    "p10": 47.3
+   },
+   "ttft_ms": {
+    "p50": 131.9,
+    "p90": 225.4,
+    "p95": 262.0,
+    "p99": 339.2
+   },
+   "tpot_ms": {
+    "p50": 19.7,
+    "p90": 21.1,
+    "p95": 21.7,
+    "p99": 24.0
+   },
+   "itl_ms": {
+    "p50": 14.2,
+    "p90": 27.5,
+    "p95": 49.4,
+    "p99": 127.2
+   },
+   "e2e_ms": {
+    "p50": 4360.0,
+    "p90": 13465.0,
+    "p95": 15050.4,
+    "p99": 20302.5
+   },
+   "errors": [],
+   "integrity": {
+    "fixed_len": {
+     "exact_frac": 1.0,
+     "chars_per_token": 5.22,
+     "result": "PASS"
+    },
+    "canary": {
+     "n": 18,
+     "accuracy": 1.0,
+     "idle_accuracy": 1.0,
+     "result": "PASS"
+    },
+    "prefill": {
+     "implausible": 0,
+     "result": "PASS"
+    },
+    "exclusive": {
+     "method": "server log",
+     "log_samples": 1086,
+     "max_extra_requests": 0,
+     "frac_samples_with_extra": 0.0,
+     "server_prefill_tokens": 1434026,
+     "our_uncached_prompt_tokens": 1389062,
+     "result": "PASS"
+    }
+   }
+  },
+  {
+   "concurrency": 64,
+   "window_s": 180.0,
+   "completed": 1246,
+   "failed": 0,
+   "output_tokens_per_s": 2148.2,
+   "requests_per_s": 6.922,
+   "input_tokens_per_s": 132648.1,
+   "avg_input_tokens": 19163,
+   "avg_output_tokens": 298,
+   "cached_frac": 0.919,
+   "per_user_tok_s": {
+    "p50": 35.6,
+    "p10": 33.2
+   },
+   "ttft_ms": {
+    "p50": 143.6,
+    "p90": 260.7,
+    "p95": 296.5,
+    "p99": 402.0
+   },
+   "tpot_ms": {
+    "p50": 28.1,
+    "p90": 30.2,
+    "p95": 31.1,
+    "p99": 33.1
+   },
+   "itl_ms": {
+    "p50": 17.1,
+    "p90": 51.1,
+    "p95": 89.8,
+    "p99": 192.5
+   },
+   "e2e_ms": {
+    "p50": 6091.8,
+    "p90": 18632.0,
+    "p95": 20952.2,
+    "p99": 23490.9
+   },
+   "errors": [],
+   "integrity": {
+    "fixed_len": {
+     "exact_frac": 1.0,
+     "chars_per_token": 5.22,
+     "result": "PASS"
+    },
+    "canary": {
+     "n": 34,
+     "accuracy": 1.0,
+     "idle_accuracy": 1.0,
+     "result": "PASS"
+    },
+    "prefill": {
+     "implausible": 0,
+     "result": "PASS"
+    },
+    "exclusive": {
+     "method": "server log",
+     "log_samples": 1322,
+     "max_extra_requests": 0,
+     "frac_samples_with_extra": 0.0,
+     "server_prefill_tokens": 2041865,
+     "our_uncached_prompt_tokens": 1936940,
+     "result": "PASS"
+    }
+   }
+  }
+ ]
+}
