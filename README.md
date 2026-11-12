@@ -158,6 +158,8 @@ once" is a separate question, so we measure it with a second, dedicated tool:
 - **Fixed output:** fixed output lengths (`ignore_eos`) mean every deployment does the same work.
 - **Built-in checks:** exact output length, canary accuracy under load, temperature-0 fingerprints before and after, and an implausibly fast prefill check. With the server's log streamed in, it also checks that nobody else was using the server.
 
+**This is the test behind our published GLM-5.3-Flash numbers.** `run_agent_c64.sh` pins coding-agent-serving-bench to commit `78d9cc3e14ff`; its `bench/run.py` has sha256 `f2abcfcbe416…` and its corpus has sha256 `6e93e8a5f3f6…`, and every result file records both hashes. The 5-in-flight test above (`replay.py` / `run_bench.sh`) is a different workload, and its numbers are not comparable.
+
 One command runs it against both backends of the public endpoint and prints one table:
 
 ```bash
